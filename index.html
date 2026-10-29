@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>平面二连杆机械臂逆运动学演示 · 几何解析法 & 数值迭代法</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#ffffff; --ink:#1f2733; --muted:#69748a;
+    --line:#e3e8ef; --accent:#3b6ef0; --accent2:#1f9d6b;
+    --sol1:#2f6fe0;   /* 解析解1 蓝 */
+    --sol2:#1aa179;   /* 解析解2 绿 */
+    --num:#8b3df0;    /* 数值解 紫 */
+    --num-path:#b388f0;
+    --target:#e23b3b; /* 目标点 红 */
+    --warn:#e8881a;
+    --shadow:0 6px 24px rgba(31,39,51,.08);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    padding:18px 22px 14px; background:linear-gradient(120deg,#2b3a67,#3b6ef0);
+    color:#fff;
+  }
+  header h1{margin:0;font-size:20px;font-weight:650;letter-spacing:.3px;}
+  header p{margin:6px 0 0;font-size:13px;opacity:.9;}
+  .wrap{
+    max-width:1180px;margin:0 auto;padding:18px;
+    display:grid;grid-template-columns:300px 1fr;gap:18px;
+  }
+  @media (max-width:880px){ .wrap{grid-template-columns:1fr;} }
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    box-shadow:var(--shadow);padding:16px;
+  }
+  .card h2{margin:0 0 12px;font-size:15px;font-weight:650;color:var(--ink);}
+  .modes{display:flex;gap:8px;margin-bottom:6px;}
+  .modes button{
+    flex:1;padding:10px 6px;border:1px solid var(--line);background:#fff;
+    border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);
+    transition:.18s;
+  }
+  .modes button.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .modes button:hover{filter:brightness(.98);}
+  .ctrl{margin:14px 0;}
+  .ctrl label{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:6px;}
+  .ctrl label b{color:var(--ink);font-variant-numeric:tabular-nums;}
+  input[type=range]{width:100%;accent-color:var(--accent);}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .btnrow button{
+    flex:1;min-width:96px;padding:9px 8px;border:1px solid var(--line);background:#fff;
+    border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);transition:.15s;
+  }
+  .btnrow button:hover{background:#f0f4ff;border-color:var(--accent);}
+  .btnrow button.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .hint{font-size:12px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);}
+  .stage{position:relative;width:100%;}
+  .canvas-box{position:relative;background:#fbfcfe;border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  canvas{display:block;width:100%;height:auto;cursor:crosshair;touch-action:none;}
+  .legend{
+    position:absolute;top:10px;right:10px;background:rgba(255,255,255,.92);
+    border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:12px;
+    box-shadow:0 2px 8px rgba(0,0,0,.06);min-width:120px;
+  }
+  .legend .row{display:flex;align-items:center;gap:7px;margin:3px 0;}
+  .legend .sw{width:18px;height:0;border-top-width:3px;border-top-style:solid;display:inline-block;}
+  .badge{position:absolute;left:12px;bottom:12px;font-size:12.5px;padding:5px 10px;border-radius:8px;
+    background:rgba(255,255,255,.92);border:1px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.06);}
+  .status{margin-top:12px;font-size:13px;padding:10px 12px;border-radius:10px;background:#f3f6fc;border:1px solid var(--line);}
+  .status.ok{background:#eafaf2;border-color:#bfe9d4;color:#16653f;}
+  .status.bad{background:#fff4e6;border-color:#f4d8a8;color:#9a5b0c;}
+  .status b{font-variant-numeric:tabular-nums;}
+  table.kv{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px;}
+  table.kv td{padding:4px 6px;border-bottom:1px solid var(--line);}
+  table.kv td:first-child{color:var(--muted);width:42%;}
+  table.kv td:last-child{font-variant-numeric:tabular-nums;font-weight:600;}
+  details{margin-top:14px;font-size:13px;color:var(--muted);}
+  details summary{cursor:pointer;font-weight:600;color:var(--ink);}
+  details p{margin:8px 0;}
+  code{background:#eef2f9;padding:1px 5px;border-radius:5px;font-size:12px;color:#27406b;}
+  footer{padding:14px 22px 28px;color:var(--muted);font-size:12px;text-align:center;}
+  .tag{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;font-weight:700;color:#fff;}
+  .tag.a{background:var(--sol1);} .tag.n{background:var(--num);}
+</style>
+</head>
+<body>
+<header>
+  <h1>平面二连杆机械臂 · 逆运动学求解演示</h1>
+  <p>对比 <b>几何解析法</b>（闭式精确解）与 <b>数值迭代法</b>（雅可比阻尼最小二乘）两种逆解思路 · 点击或拖动画布设置目标点</p>
+</header>
+
+<div class="wrap">
+  <!-- 左侧控制面板 -->
+  <div class="card">
+    <h2>控制面板</h2>
+    <div class="modes">
+      <button id="btnAnalytic" class="active">几何解析法</button>
+      <button id="btnNumeric">数值迭代法</button>
+    </div>
+
+    <div class="ctrl">
+      <label>连杆 1 长度 L₁ <b><span id="vL1">1.00</span></b></label>
+      <input type="range" id="L1" min="0.3" max="2" step="0.05" value="1" />
+    </div>
+    <div class="ctrl">
+      <label>连杆 2 长度 L₂ <b><span id="vL2">1.00</span></b></label>
+      <input type="range" id="L2" min="0.3" max="2" step="0.05" value="1" />
+    </div>
+
+    <!-- 数值法专属：初始猜测 -->
+    <div class="ctrl" id="initGuessBox" style="display:none;">
+      <label>初始猜测 θ₁ <b><span id="vT1">0°</span></b></label>
+      <input type="range" id="T1" min="-180" max="180" step="1" value="0" />
+      <label style="margin-top:8px;">初始猜测 θ₂ <b><span id="vT2">0°</span></b></label>
+      <input type="range" id="T2" min="-180" max="180" step="1" value="0" />
+      <label style="margin-top:8px;">阻尼系数 λ <b><span id="vLam">0.05</span></b></label>
+      <input type="range" id="LAM" min="0" max="0.5" step="0.01" value="0.05" />
+    </div>
+
+    <div class="btnrow">
+      <button id="btnRand">随机目标</button>
+      <button id="btnReset">清空</button>
+    </div>
+    <div class="btnrow" id="animBox" style="display:none;">
+      <button id="btnAnim" class="primary">▶ 播放迭代动画</button>
+    </div>
+
+    <div class="hint">
+      <span class="tag a">解析</span> 给出两个肘部构型（蓝=高手肘 / 绿=低手肘），目标超出工作空间时提示不可达。<br><br>
+      <span class="tag n">数值</span> 从初始猜测出发，沿雅可比方向逐步逼近目标，画出迭代路径与收敛解。
+    </div>
+
+    <details>
+      <summary>两种方法原理</summary>
+      <p><b>几何解析法</b>：由目标距离 <code>r</code> 与余弦定理直接求两关节角
+        <code>cosθ₂=(r²−L₁²−L₂²)/(2L₁L₂)</code>，再得
+        <code>θ₁=atan2(y,x)∓β</code>，一次计算即出全部精确解。</p>
+      <p><b>数值迭代法</b>：以雅可比伪逆（阻尼最小二乘）
+        <code>Δθ=(JᵀJ+λ²I)⁻¹Jᵀ·e</code> 迭代更新关节角，直到末端误差小于阈值。通用但只给单一近邻解，且依赖初值。</p>
+    </details>
+  </div>
+
+  <!-- 右侧画布 -->
+  <div class="card">
+    <h2 id="plotTitle">解析法演示</h2>
+    <div class="stage">
+      <div class="canvas-box">
+        <canvas id="cv" width="640" height="640"></canvas>
+        <div class="legend" id="legend"></div>
+        <div class="badge" id="badge">请点击或拖动画布以设置目标</div>
+      </div>
+    </div>
+    <div id="status" class="status">等待设置目标点…</div>
+    <table class="kv" id="kv"></table>
+  </div>
+</div>
+
+<footer>纯前端实现 · 无外部依赖 · 可离线运行 · 使用 HTML5 Canvas 绘制</footer>
+
+<script>
+"use strict";
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+// ---------- 状态 ----------
+const S = {
+  mode: 'analytic',          // 'analytic' | 'numeric'
+  L1: 1, L2: 1,
+  target: null,              // {x,y} 世界坐标
+  initT1: 0, initT2: 0, lam: 0.05,  // 数值法初值（弧度/阻尼）
+  animTimer: null,
+};
+
+// ---------- 数学：正/逆运动学 ----------
+function fk(t1, t2){            // 正运动学 -> 末端 (x,y)
+  const x = S.L1*Math.cos(t1) + S.L2*Math.cos(t1+t2);
+  const y = S.L1*Math.sin(t1) + S.L2*Math.sin(t1+t2);
+  return {x, y};
+}
+function elbow(t1){ return {x: S.L1*Math.cos(t1), y: S.L1*Math.sin(t1)}; }
+
+// 几何解析法：返回两个解或 null（不可达）
+function ikAnalytic(tx, ty){
+  const L1=S.L1, L2=S.L2;
+  const r2 = tx*tx + ty*ty, r = Math.sqrt(r2);
+  const reach = L1+L2, inner = Math.abs(L1-L2);
+  if (r > reach + 1e-9 || r < inner - 1e-9 || r < 1e-9) return null;
+  let c2 = (r2 - L1*L1 - L2*L2)/(2*L1*L2);
+  c2 = Math.max(-1, Math.min(1, c2));
+  const t2a = Math.acos(c2);          // 高手肘
+  const t2b = -Math.acos(c2);         // 低手肘
+  const phi = Math.atan2(ty, tx);
+  let cb = (L1*L1 + r2 - L2*L2)/(2*L1*r);
+  cb = Math.max(-1, Math.min(1, cb));
+  const beta = Math.acos(cb);
+  return {
+    sol1: { t1: phi - beta, t2: t2a },
+    sol2: { t1: phi + beta, t2: t2b },
+  };
+}
+
+// 雅可比矩阵
+function jacobian(t1, t2){
+  const s1=Math.sin(t1), c1=Math.cos(t1);
+  const s12=Math.sin(t1+t2), c12=Math.cos(t1+t2);
+  return [
+    [-S.L1*s1 - S.L2*s12, -S.L2*s12],
+    [ S.L1*c1 + S.L2*c12,  S.L2*c12],
+  ];
+}
+
+// 数值迭代法：阻尼最小二乘，返回 {t1,t2,path,iters,err,converged,initial}
+function ikNumeric(tx, ty){
+  const lam = S.lam;
+  let t1 = S.initT1, t2 = S.initT2;
+  const path = [];               // 末端轨迹
+  const poses = [];              // 中间构型（用于动画）
+  const maxIter = 200, tol = 1e-4;
+  let err = Infinity;
+  for (let i=0;i<maxIter;i++){
+    const f = fk(t1, t2);
+    const ex = tx - f.x, ey = ty - f.y;
+    err = Math.hypot(ex, ey);
+    path.push({x:f.x, y:f.y});
+    poses.push({t1, t2});
+    if (err < tol) break;
+    const J = jacobian(t1, t2);
+    // A = JᵀJ + λ²I  (2x2 对称)
+    const a = J[0][0]*J[0][0] + J[1][0]*J[1][0] + lam*lam;
+    const b = J[0][0]*J[0][1] + J[1][0]*J[1][1];
+    const d = J[0][1]*J[0][1] + J[1][1]*J[1][1] + lam*lam;
+    const det = a*d - b*b;
+    if (Math.abs(det) < 1e-12){ break; } // 奇异，停止
+    // A⁻¹ = [[d,-b],[-b,a]]/det ; Jᵀe
+    const je1 = J[0][0]*ex + J[1][0]*ey;
+    const je2 = J[0][1]*ex + J[1][1]*ey;
+    const dt1 = ( d*je1 - b*je2)/det;
+    const dt2 = (-b*je1 + a*je2)/det;
+    // 步长限制，防止雅可比病态时角度发散打转
+    const st = Math.hypot(dt1, dt2), maxStep = 0.5;
+    if (st > maxStep){ const k = maxStep/st; t1 += dt1*k; t2 += dt2*k; }
+    else { t1 += dt1; t2 += dt2; }
+  }
+  const f = fk(t1, t2);
+  err = Math.hypot(tx - f.x, ty - f.y);
+  path.push({x:f.x, y:f.y});
+  poses.push({t1, t2});
+  return { t1, t2, path, poses, iters: path.length-1, err, converged: err < 1e-3,
+           initial: {t1:S.initT1, t2:S.initT2} };
+}
+
+// ---------- 画布坐标变换 ----------
+let viewHalf = 2.4, dpr = 1, W = 640, H = 640, scale = 1, cx = 320, cy = 320;
+function fitView(){
+  viewHalf = Math.max(2.4, (S.L1 + S.L2) * 1.18);
+  dpr = window.devicePixelRatio || 1;
+  const box = cv.parentElement.getBoundingClientRect();
+  W = Math.max(320, Math.round(box.width));
+  H = W; // 正方形
+  cv.width = W * dpr; cv.height = H * dpr;
+  cv.style.height = H + 'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  cx = W/2; cy = H/2;
+  scale = (W/2 * 0.92) / viewHalf;
+}
+function w2s(x,y){ return { x: cx + x*scale, y: cy - y*scale }; }
+function s2w(px,py){ return { x: (px-cx)/scale, y: -(py-cy)/scale }; }
+
+// ---------- 绘制 ----------
+function drawGrid(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#fbfcfe'; ctx.fillRect(0,0,W,H);
+  // 网格
+  ctx.lineWidth = 1; ctx.strokeStyle = '#e7ecf3';
+  const step = 0.5;
+  const max = viewHalf;
+  ctx.beginPath();
+  for (let v=-Math.floor(max/step)*step; v<=max; v+=step){
+    let p = w2s(v,0), p2 = w2s(v,max);
+    ctx.moveTo(p.x, w2s(v,-max).y); ctx.lineTo(p.x, w2s(v,max).y);
+    ctx.moveTo(w2s(0,v).x, w2s(0,v).y); ctx.lineTo(w2s(max,v).x, w2s(0,v).y);
+  }
+  ctx.stroke();
+  // 坐标轴
+  ctx.lineWidth = 1.4; ctx.strokeStyle = '#c4ccd8';
+  ctx.beginPath();
+  ctx.moveTo(w2s(-max,0).x, w2s(-max,0).y); ctx.lineTo(w2s(max,0).x, w2s(max,0).y);
+  ctx.moveTo(w2s(0,-max).x, w2s(0,-max).y); ctx.lineTo(w2s(0,max).x, w2s(0,max).y);
+  ctx.stroke();
+  // 刻度
+  ctx.fillStyle = '#9aa6b8'; ctx.font = '10px sans-serif'; ctx.textAlign='center';
+  for (let v=-Math.floor(max/step)*step; v<=max+1e-6; v+=step){
+    if (Math.abs(v)<1e-6) continue;
+    let p = w2s(v,0);
+    ctx.fillText(v.toFixed(1).replace(/\.0$/,' '), p.x, p.y+12);
+    let q = w2s(0,v);
+    ctx.textAlign='right'; ctx.fillText(v.toFixed(1).replace(/\.0$/,' '), q.x-4, q.y+3);
+    ctx.textAlign='center';
+  }
+}
+
+function drawWorkspace(){
+  const reach = S.L1 + S.L2, inner = Math.abs(S.L1 - S.L2);
+  ctx.setLineDash([6,5]); ctx.lineWidth = 1.6; ctx.strokeStyle = '#9aa6b8';
+  let c = w2s(0,0);
+  ctx.beginPath(); ctx.arc(c.x, c.y, reach*scale, 0, Math.PI*2); ctx.stroke();
+  if (inner > 1e-3){
+    ctx.strokeStyle = '#c4ccd8';
+    ctx.beginPath(); ctx.arc(c.x, c.y, inner*scale, 0, Math.PI*2); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+}
+
+function drawArm(t1, t2, color, width, dash){
+  const e = elbow(t1); const tip = fk(t1, t2);
+  const b = w2s(0,0), p1 = w2s(e.x, e.y), p2 = w2s(tip.x, tip.y);
+  ctx.setLineDash(dash||[]); ctx.lineWidth = width; ctx.strokeStyle = color; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(b.x,b.y); ctx.lineTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+  ctx.setLineDash([]);
+  // 关节
+  ctx.fillStyle = '#222';
+  [b,p1].forEach(p=>{ ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2); ctx.fill(); });
+}
+
+function drawTarget(){
+  if (!S.target) return;
+  const p = w2s(S.target.x, S.target.y);
+  ctx.strokeStyle = '#e23b3b'; ctx.lineWidth = 2.4;
+  const s=7;
+  ctx.beginPath();
+  ctx.moveTo(p.x-s,p.y-s); ctx.lineTo(p.x+s,p.y+s);
+  ctx.moveTo(p.x+s,p.y-s); ctx.lineTo(p.x-s,p.y+s); ctx.stroke();
+}
+
+function drawLegend(items){
+  const el = document.getElementById('legend');
+  el.innerHTML = items.map(it=>{
+    const dash = it.dash ? 'border-top-style:dashed;' : '';
+    return `<div class="row"><span class="sw" style="border-top-color:${it.color};${dash}"></span>${it.label}</div>`;
+  }).join('');
+}
+
+// ---------- 渲染主流程 ----------
+function render(){
+  fitView();
+  drawGrid();
+  drawWorkspace();
+
+  if (S.mode === 'analytic'){
+    if (!S.target){ drawTarget(); drawLegend([{color:'#9aa6b8',label:'最大工作范围',dash:true},{color:'#e23b3b',label:'目标点'}]); return; }
+    const sol = ikAnalytic(S.target.x, S.target.y);
+    drawTarget();
+    if (!sol){
+      document.getElementById('plotTitle').textContent = '解析法演示：目标不可达！';
+      document.getElementById('badge').textContent = '⚠ 目标超出工作空间，无法到达';
+      drawLegend([{color:'#9aa6b8',label:'最大工作范围',dash:true},{color:'#e23b3b',label:'目标点'}]);
+      setStatus('bad', `目标点 (${S.target.x.toFixed(2)}, ${S.target.y.toFixed(2)}) 距离基座 <b>${Math.hypot(S.target.x,S.target.y).toFixed(2)}</b>，超出可达范围 [${Math.abs(S.L1-S.L2).toFixed(2)}, ${(S.L1+S.L2).toFixed(2)}]，<b>目标不可达</b>。`);
+      document.getElementById('kv').innerHTML = kvRows([
+        ['目标坐标', `(${S.target.x.toFixed(2)}, ${S.target.y.toFixed(2)})`],
+        ['可达半径', `${Math.abs(S.L1-S.L2).toFixed(2)} ~ ${(S.L1+S.L2).toFixed(2)}`],
+        ['结论', '无解析解'],
+      ]);
+      return;
+    }
+    // 两个解
+    drawArm(sol.sol1.t1, sol.sol1.t2, '#2f6fe0', 3.2, []);
+    drawArm(sol.sol2.t1, sol.sol2.t2, '#1aa179', 2.6, [6,4]);
+    const e1 = elbow(sol.sol1.t1), e2 = elbow(sol.sol2.t1);
+    document.getElementById('plotTitle').textContent = '解析法演示：已找到所有精确解';
+    document.getElementById('badge').textContent = '蓝=高手肘解 · 绿=低手肘解';
+    drawLegend([{color:'#9aa6b8',label:'最大工作范围',dash:true},{color:'#e23b3b',label:'目标点'},
+                {color:'#2f6fe0',label:'解1（高手肘）'},{color:'#1aa179',label:'解2（低手肘）',dash:true}]);
+    const deg = r => (r*180/Math.PI);
+    setStatus('ok', `解析法一次求得 <b>2</b> 个精确构型，末端误差均为 0（闭式解）。`);
+    document.getElementById('kv').innerHTML = kvRows([
+      ['目标坐标', `(${S.target.x.toFixed(2)}, ${S.target.y.toFixed(2)})`],
+      ['解1 θ₁ / θ₂', `${deg(sol.sol1.t1).toFixed(1)}° / ${deg(sol.sol1.t2).toFixed(1)}°`],
+      ['解1 肘点', `(${e1.x.toFixed(2)}, ${e1.y.toFixed(2)})`],
+      ['解2 θ₁ / θ₂', `${deg(sol.sol2.t1).toFixed(1)}° / ${deg(sol.sol2.t2).toFixed(1)}°`],
+      ['解2 肘点', `(${e2.x.toFixed(2)}, ${e2.y.toFixed(2)})`],
+    ]);
+  } else {
+    // 数值法
+    if (!S.target){
+      // 仅画出初始猜测
+      const ig = S.initT1, ig2 = S.initT2;
+      drawArm(ig, ig2, '#b9c0cc', 2.4, [3,4]);
+      drawLegend([{color:'#b9c0cc',label:'初始猜测',dash:true},{color:'#e23b3b',label:'目标点'},{color:'#8b3df0',label:'最终解'},{color:'#b388f0',label:'迭代路径',dash:true}]);
+      return;
+    }
+    const res = ikNumeric(S.target.x, S.target.y);
+    drawArm(res.initial.t1, res.initial.t2, '#b9c0cc', 2.4, [3,4]);   // 初始猜测
+    // 迭代路径
+    ctx.setLineDash([5,4]); ctx.lineWidth=1.8; ctx.strokeStyle='#b388f0';
+    ctx.beginPath();
+    res.path.forEach((p,i)=>{ const s=w2s(p.x,p.y); i?ctx.lineTo(s.x,s.y):ctx.moveTo(s.x,s.y); });
+    ctx.stroke(); ctx.setLineDash([]);
+    drawTarget();
+    drawArm(res.t1, res.t2, '#8b3df0', 3.2, []);   // 最终解
+    const deg = r => (r*180/Math.PI);
+    if (res.converged){
+      document.getElementById('plotTitle').textContent = '数值法演示：迭代收敛成功！';
+      document.getElementById('badge').textContent = `迭代 ${res.iters} 步收敛`;
+      setStatus('ok', `从初始猜测出发，经 <b>${res.iters}</b> 次雅可比迭代收敛，末端误差 <b>${res.err.toExponential(2)}</b>（λ=${S.lam}）。`);
+    } else {
+      document.getElementById('plotTitle').textContent = '数值法演示：迭代未完全收敛';
+      document.getElementById('badge').textContent = `误差 ${res.err.toFixed(3)}`;
+      setStatus('bad', `迭代 <b>${res.iters}</b> 步后末端误差仍达 <b>${res.err.toFixed(3)}</b>，目标可能超出工作空间或初值不佳。`);
+    }
+    drawLegend([{color:'#b9c0cc',label:'初始猜测',dash:true},{color:'#e23b3b',label:'目标点'},
+                {color:'#b388f0',label:'迭代路径',dash:true},{color:'#8b3df0',label:'最终解'}]);
+    document.getElementById('kv').innerHTML = kvRows([
+      ['目标坐标', `(${S.target.x.toFixed(2)}, ${S.target.y.toFixed(2)})`],
+      ['初始 θ₁ / θ₂', `${deg(res.initial.t1).toFixed(1)}° / ${deg(res.initial.t2).toFixed(1)}°`],
+      ['最终 θ₁ / θ₂', `${deg(res.t1).toFixed(1)}° / ${deg(res.t2).toFixed(1)}°`],
+      ['迭代步数', `${res.iters}`],
+      ['末端误差', res.err.toExponential(2)],
+      ['收敛', res.converged ? '是' : '否'],
+    ]);
+  }
+}
+
+function kvRows(arr){ return arr.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join(''); }
+function setStatus(cls, html){ const el=document.getElementById('status'); el.className='status '+cls; el.innerHTML=html; }
+
+// ---------- 交互 ----------
+function setMode(m){
+  S.mode = m;
+  document.getElementById('btnAnalytic').classList.toggle('active', m==='analytic');
+  document.getElementById('btnNumeric').classList.toggle('active', m==='numeric');
+  document.getElementById('initGuessBox').style.display = m==='numeric' ? '' : 'none';
+  document.getElementById('animBox').style.display = m==='numeric' ? '' : 'none';
+  document.getElementById('plotTitle').textContent = m==='analytic' ? '解析法演示' : '数值法演示';
+  stopAnim();
+  render();
+}
+function stopAnim(){ if (S.animTimer){ clearInterval(S.animTimer); S.animTimer=null; document.getElementById('btnAnim').textContent='▶ 播放迭代动画'; } }
+
+// 点击 / 拖动设置目标点（Pointer 事件，兼容鼠标与触屏）
+let dragging = false, rafId = null, pendingEvt = null;
+function pointerToWorld(e){
+  const rect = cv.getBoundingClientRect();
+  const px = (e.clientX-rect.left) * (W/rect.width);
+  const py = (e.clientY-rect.top)  * (H/rect.height);
+  return s2w(px, py);
+}
+function flushDrag(){
+  rafId = null;
+  if (pendingEvt){ S.target = pointerToWorld(pendingEvt); pendingEvt = null; }
+  render();
+}
+cv.addEventListener('pointerdown', e=>{
+  dragging = true;
+  try { cv.setPointerCapture(e.pointerId); } catch(_){}
+  S.target = pointerToWorld(e);
+  stopAnim();
+  render();
+  e.preventDefault();
+});
+cv.addEventListener('pointermove', e=>{
+  if (!dragging) return;
+  pendingEvt = e;
+  if (rafId === null) rafId = requestAnimationFrame(flushDrag);
+  e.preventDefault();
+});
+function endDrag(e){
+  if (!dragging) return;
+  dragging = false;
+  try { cv.releasePointerCapture(e.pointerId); } catch(_){}
+  S.target = pointerToWorld(e);
+  render();
+}
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', ()=>{ dragging = false; });
+
+// 滑块
+function bind(id, fn){ const el=document.getElementById(id); el.addEventListener('input', ()=>{ fn(parseFloat(el.value)); render(); }); }
+bind('L1', v=>{ S.L1=v; document.getElementById('vL1').textContent=v.toFixed(2); });
+bind('L2', v=>{ S.L2=v; document.getElementById('vL2').textContent=v.toFixed(2); });
+bind('T1', v=>{ S.initT1=v*Math.PI/180; document.getElementById('vT1').textContent=v+'°'; });
+bind('T2', v=>{ S.initT2=v*Math.PI/180; document.getElementById('vT2').textContent=v+'°'; });
+bind('LAM', v=>{ S.lam=v; document.getElementById('vLam').textContent=v.toFixed(2); });
+
+document.getElementById('btnAnalytic').onclick = ()=>setMode('analytic');
+document.getElementById('btnNumeric').onclick = ()=>setMode('numeric');
+document.getElementById('btnReset').onclick = ()=>{ S.target=null; stopAnim(); render(); document.getElementById('plotTitle').textContent = S.mode==='analytic'?'解析法演示':'数值法演示'; setStatus('', '等待设置目标点…'); document.getElementById('kv').innerHTML=''; document.getElementById('badge').textContent='请点击或拖动画布以设置目标'; };
+document.getElementById('btnRand').onclick = ()=>{
+  const reach = S.L1+S.L2, inner = Math.abs(S.L1-S.L2);
+  const r = inner + Math.random()*(reach-inner)*0.98;
+  const a = Math.random()*Math.PI*2;
+  S.target = { x: r*Math.cos(a), y: r*Math.sin(a) };
+  stopAnim(); render();
+};
+
+// 数值法动画
+document.getElementById('btnAnim').onclick = ()=>{
+  if (S.mode!=='numeric' || !S.target){ setMode('numeric'); }
+  if (!S.target){ document.getElementById('btnRand').onclick(); }
+  const res = ikNumeric(S.target.x, S.target.y);
+  let i=0;
+  stopAnim();
+  document.getElementById('btnAnim').textContent='⏸ 停止动画';
+  S.animTimer = setInterval(()=>{
+    render();
+    // 覆盖：只画到第 i 步
+    drawNumericStep(res, i);
+    i++;
+    if (i>=res.poses.length){ clearInterval(S.animTimer); S.animTimer=null; document.getElementById('btnAnim').textContent='▶ 播放迭代动画'; render(); }
+  }, 120);
+};
+function drawNumericStep(res, i){
+  // 重画：初始猜测 + 到第 i 步的末端 + 路径前缀
+  fitView(); drawGrid(); drawWorkspace();
+  drawArm(res.initial.t1, res.initial.t2, '#b9c0cc', 2.4, [3,4]);
+  ctx.setLineDash([5,4]); ctx.lineWidth=1.8; ctx.strokeStyle='#b388f0';
+  ctx.beginPath();
+  for (let k=0;k<=i && k<res.path.length;k++){ const s=w2s(res.path[k].x,res.path[k].y); k?ctx.lineTo(s.x,s.y):ctx.moveTo(s.x,s.y); }
+  ctx.stroke(); ctx.setLineDash([]);
+  drawTarget();
+  if (i < res.poses.length){ const p=res.poses[i]; drawArm(p.t1,p.t2,'#8b3df0',3.2,[]); }
+  document.getElementById('badge').textContent = `迭代 ${Math.min(i,res.iters)} / ${res.iters} 步`;
+}
+
+// 初始化
+setMode('analytic');
+window.addEventListener('resize', render);
+</script>
+</body>
+</html>
